@@ -350,7 +350,7 @@
         </div>
     </div>
 
-    <!-- Teacher Admin Management Panel Modal (Updated to show all students synced from Firebase) -->
+    <!-- Teacher Admin Management Panel Modal (With Excel Export Option) -->
     <div id="teacherAdminModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
         <div class="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 space-y-6 shadow-2xl border-4 border-amber-400 relative max-h-[90vh] overflow-y-auto">
             <button onclick="closeTeacherAdminModal()" class="absolute top-4 left-4 w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center font-bold hover:bg-slate-200">
@@ -363,14 +363,20 @@
                 </div>
                 <div>
                     <h3 class="text-xl font-black font-cairo text-purple-950">لوحة المعلمة والإدارة (سجلات الطالبات)</h3>
-                    <p class="text-xs text-slate-500">متابعة إنجازات الطالبات وحلولهن المتزامنة عبر السحابة</p>
+                    <p class="text-xs text-slate-500">متابعة إنجازات الطالبات وحلولهن وتصدير التقارير</p>
                 </div>
             </div>
 
             <!-- Students Live List from Firebase -->
             <div class="space-y-3">
-                <h4 class="text-sm font-bold text-purple-950"><i class="fa-solid fa-users ml-1"></i> الطالبات المسجلات والمنجزات:</h4>
-                <div id="teacherStudentsListContainer" class="space-y-2 max-h-[300px] overflow-y-auto p-2 bg-slate-50 rounded-2xl border border-slate-200">
+                <div class="flex justify-between items-center">
+                    <h4 class="text-sm font-bold text-purple-950"><i class="fa-solid fa-users ml-1"></i> الطالبات المسجلات والمنجزات:</h4>
+                    <button onclick="exportToExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs shadow-md btn-bounce flex items-center gap-1.5">
+                        <i class="fa-solid fa-file-excel"></i>
+                        <span>تصدير ملف Excel (CSV)</span>
+                    </button>
+                </div>
+                <div id="teacherStudentsListContainer" class="space-y-2 max-h-[260px] overflow-y-auto p-2 bg-slate-50 rounded-2xl border border-slate-200">
                     <p class="text-xs text-slate-400 text-center py-4">جاري تحميل سجلات الطالبات من السحابة...</p>
                 </div>
             </div>
@@ -458,6 +464,7 @@
 
         let timerSeconds = 0;
         let activeTimerInterval = null;
+        let cachedStudentsData = null; // لتخزين بيانات الطالبات مؤقتاً لتصدير الإكسل
 
         // Sync Data to Firebase Cloud Realtime DB
         function syncToFirebase() {
@@ -728,20 +735,16 @@
 
             db.ref('students').once('value', (snapshot) => {
                 const studentsData = snapshot.val();
+                cachedStudentsData = studentsData; // حفظ البيانات لتصدير الإكسل
+
                 if (!studentsData) {
-                    container.innerHTML = `<p class="text-xs text-slate-500 text-center py-4">لا توجد طالبات مسجلات حتى الآن.</p>`;
+                    container.innerHTML = `<p class="text-xs text-slate-500 text-center py-4">لا توجد طالبات مسجلات حتى الآن.</p>";
                     return;
                 }
 
                 let html = '';
-                let totalStudentsCount = 0;
-                let totalProductsCount = 0;
-
                 Object.values(studentsData).forEach(st => {
-                    totalStudentsCount++;
                     const prodsCount = st.products ? st.products.length : 0;
-                    totalProductsCount += prodsCount;
-
                     html += `
                         <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm space-y-2">
                             <div class="flex justify-between items-center">
@@ -758,6 +761,33 @@
 
                 container.innerHTML = html;
             });
+        }
+
+        // Export data to Excel (CSV format compatible with Excel)
+        function exportToExcel() {
+            if (!cachedStudentsData) {
+                alert('لا توجد بيانات لتصديرها حالياً. قومي بفتح لوحة الإدارة أولاً لجلب البيانات.');
+                return;
+            }
+
+            let csvContent = "\uFEFF"; // دعم اللغة العربية بشكل صحيح في إكسل
+            csvContent += "اسم الطالبة,الصف الدراسي,إجمالي النقاط,عدد البطاقات والإنجازات\n";
+
+            Object.values(cachedStudentsData).forEach(st => {
+                const name = `"${st.name || ''}"`;
+                const grade = `"الصف ${getGradeArabic(st.grade)}"`;
+                const score = st.score || 0;
+                const badges = st.products ? st.products.length : 0;
+                csvContent += `${name},${grade},${score},${badges}\n`;
+            });
+
+            const encodedUri = encodeURI("data:text/csv;charset=utf-8," + csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "TopGoal_Students_Report.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
 
         function closeTeacherAdminModal() {
@@ -1332,7 +1362,7 @@
 
                         <div class="text-center pt-2">
                             <p class="text-xs text-slate-500">طالبة التميز والإثراء:</p>
-                            <h5 class="text-lg font-black font-cairo text-purple-950">${p.studentName}</h5>
+                            <h5 class="text-lg font-black font-cairo text-purple-955">${p.studentName}</h5>
                             <p class="text-xs font-bold text-slate-600">الصف ${getGradeArabic(p.grade)} الابتدائي</p>
                         </div>
                     </div>
