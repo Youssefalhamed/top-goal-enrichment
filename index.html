@@ -7,38 +7,15 @@
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.1/css/all.min.css">
     <!-- Canvas Confetti -->
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Fredoka:wght@400;600;700&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
 
-    <!-- Firebase SDK Modular (CDN Version) -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getDatabase, ref, push, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-
-        // Your web app's Firebase configuration
-        const firebaseConfig = {
-            apiKey: "AIzaSyDk2KraTDkHmuXNA7vohCLE1CB4n3lofic",
-            authDomain: "topgoal-enrichment.firebaseapp.com",
-            databaseURL: "https://topgoal-enrichment-default-rtdb.europe-west1.firebasedatabase.app",
-            projectId: "topgoal-enrichment",
-            storageBucket: "topgoal-enrichment.firebasestorage.app",
-            messagingSenderId: "1092834235198",
-            appId: "1:1092834235198:web:346af93d8f1cf1f6dfd26f"
-        };
-
-        // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
-        const db = getDatabase(app);
-
-        // Export db & functions to global scope so existing functions can use them
-        window.db = db;
-        window.dbRef = ref;
-        window.dbPush = push;
-        window.dbOnValue = onValue;
-    </script>
+    <!-- Firebase App & Realtime Database SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
 
     <script>
         tailwind.config = {
@@ -450,4 +427,897 @@
 
     <!-- Feedback Prompt Modal -->
     <div id="feedbackModal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-        <div
+        <div id="modalBody" class="bg-white rounded-3xl max-w-md w-full p-6 text-center shadow-2xl border-4 border-amber-400">
+            <!-- Modal dynamic contents injected via JavaScript -->
+        </div>
+    </div>
+
+    <script>
+        // -------------------------------------------------------------
+        // FIREBASE SETUP FOR REALTIME SYNC (ضع مفاتيحك هنا)
+        // -------------------------------------------------------------
+        const firebaseConfig = {
+            apiKey: "استبدل_بهذا_API_KEY_الخاص_بمشروعك",
+            authDomain: "topgoal-enrichment.firebaseapp.com",
+            databaseURL: "https://topgoal-enrichment-default-rtdb.firebaseio.com",
+            projectId: "topgoal-enrichment",
+            storageBucket: "topgoal-enrichment.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "1:123456789:web:abcdef"
+        };
+
+        // Initialize Firebase safely
+        let db = null;
+        try {
+            firebase.initializeApp(firebaseConfig);
+            db = firebase.database();
+            console.log("Firebase Connected Successfully!");
+        } catch(e) {
+            console.log("Firebase Initialization error:", e);
+        }
+
+        // App Core State
+        let currentStudent = {
+            name: '',
+            grade: '4',
+            score: 0,
+            products: []
+        };
+
+        let timerSeconds = 0;
+        let activeTimerInterval = null;
+
+        // Sync Data to Firebase Cloud Realtime DB
+        function syncToFirebase() {
+            if (!db || !currentStudent.name) return;
+            const safeKey = currentStudent.name.replace(/[.#$\[\]]/g, "_");
+            db.ref('students/' + safeKey).set(currentStudent);
+        }
+
+        // Listen for realtime updates from Firebase
+        function listenToFirebase() {
+            if (!db || !currentStudent.name) return;
+            const safeKey = currentStudent.name.replace(/[.#$\[\]]/g, "_");
+            db.ref('students/' + safeKey).on('value', (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    currentStudent = data;
+                    if (!currentStudent.products) currentStudent.products = [];
+                    document.getElementById('headerScoreBadge').textContent = `${currentStudent.score} PTS`;
+                    updatePortfolioCount();
+                }
+            });
+        }
+
+        // Educational Content Questions Database
+        const sentenceQuestions = [
+            {
+                grade: '4',
+                topic: 'الملكيات والوظائف',
+                words: ['This', 'is', 'my', 'teacher', 'book'],
+                correct: 'This is my teacher book',
+                translation: 'هذا كتاب معلمتي',
+                badgeTitle: 'بطاقة إتقان الملكية',
+                badgeIcon: 'fa-book',
+                bgGradient: 'from-purple-600 to-indigo-700'
+            },
+            {
+                grade: '5',
+                topic: 'الوظائف والأعمال',
+                words: ['He', 'works', 'in', 'a', 'hospital'],
+                correct: 'He works in a hospital',
+                translation: 'هو يعمل في المستشفى',
+                badgeTitle: 'بطاقة جمل الوظائف',
+                badgeIcon: 'fa-user-doctor',
+                bgGradient: 'from-blue-600 to-cyan-700'
+            },
+            {
+                grade: '6',
+                topic: 'الأنشطة والماضي',
+                words: ['She', 'visited', 'her', 'grandma', 'yesterday'],
+                correct: 'She visited her grandma yesterday',
+                translation: 'هي زارت جدتها الأمس',
+                badgeTitle: 'بطاقة الزمن الماضي',
+                badgeIcon: 'fa-calendar-check',
+                bgGradient: 'from-emerald-600 to-teal-700'
+            }
+        ];
+
+        const matchingVocabData = [
+            { id: 1, left: 'Happy', right: 'سعيد (Sad عكسها)' },
+            { id: 2, left: 'Fast', right: 'سريع (Slow عكسها)' },
+            { id: 3, left: 'Teacher', right: 'معلمة' },
+            { id: 4, left: 'Hospital', right: 'مستشفى' }
+        ];
+
+        const verbsPuzzleData = [
+            { present: 'Go', pastOptions: ['Went', 'Goed', 'Gone'], correct: 'Went', arabic: 'يذهب ➔ ذهب' },
+            { present: 'See', pastOptions: ['Saw', 'Seed', 'Seen'], correct: 'Saw', arabic: 'يرى ➔ رأى' },
+            { present: 'Eat', pastOptions: ['Eated', 'Ate', 'Eaten'], correct: 'Ate', arabic: 'يأكل ➔ أكل' }
+        ];
+
+        const interviewQuestionsData = [
+            {
+                question: 'كيف تسألين معلمتك بالإنجليزية عن معنى كلمة جديدة أثناء الحصة؟',
+                options: [
+                    'What does this word mean, please?',
+                    'Where is my pencil?',
+                    'I like football very much.'
+                ],
+                correctIndex: 0,
+                feedback: 'ممتازة! هذا سؤال لبق ودقيق لموقف التفكير الناقد والمحاكة الصفية.'
+            }
+        ];
+
+        // Web Audio Synthesizer Sound Generator
+        function playSound(type) {
+            try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (!AudioCtx) return;
+                const ctx = new AudioCtx();
+                if (ctx.state === 'suspended') ctx.resume();
+
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+
+                if (type === 'win') {
+                    osc.frequency.setValueAtTime(400, ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.3);
+                    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+                    osc.start();
+                    osc.stop(ctx.currentTime + 0.3);
+                } else if (type === 'success') {
+                    osc.frequency.setValueAtTime(500, ctx.currentTime);
+                    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+                    osc.start();
+                    osc.stop(ctx.currentTime + 0.1);
+                } else if (type === 'wrong') {
+                    osc.frequency.setValueAtTime(200, ctx.currentTime);
+                    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+                    osc.start();
+                    osc.stop(ctx.currentTime + 0.25);
+                }
+            } catch(e) {
+                console.log('Audio Context not available');
+            }
+        }
+
+        // Global Navigation & Warning Handling
+        function confirmGoHome() {
+            const isPlaying = !document.getElementById('gamePlayArena').classList.contains('hidden');
+            if (isPlaying) {
+                playSound('wrong');
+                document.getElementById('confirmHomeModal').classList.remove('hidden');
+            } else {
+                forceGoToHome();
+            }
+        }
+
+        function closeConfirmHomeModal() {
+            document.getElementById('confirmHomeModal').classList.add('hidden');
+        }
+
+        function forceGoToHome() {
+            closeConfirmHomeModal();
+            stopTimer();
+
+            document.getElementById('activeGameContainer').innerHTML = '';
+
+            document.getElementById('gamePlayArena').classList.add('hidden');
+            document.getElementById('portfolioSection').classList.add('hidden');
+            document.getElementById('teacherAdminModal').classList.add('hidden');
+            document.getElementById('teacherPinModal').classList.add('hidden');
+            document.getElementById('feedbackModal').classList.add('hidden');
+
+            currentStudent = {
+                name: '',
+                grade: '4',
+                score: 0,
+                products: []
+            };
+
+            document.getElementById('studentNameInput').value = '';
+            document.getElementById('studentHeaderBadge').classList.add('hidden');
+            updatePortfolioCount();
+
+            document.getElementById('gameDashboard').classList.add('hidden');
+            document.getElementById('studentRegistrationCard').classList.remove('hidden');
+
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        const TEACHER_PIN = "1234";
+
+        function requestTeacherAuth() {
+            document.getElementById('teacherPinInput').value = '';
+            document.getElementById('pinErrorMessage').classList.add('hidden');
+            document.getElementById('teacherPinModal').classList.remove('hidden');
+            setTimeout(() => {
+                document.getElementById('teacherPinInput').focus();
+            }, 100);
+        }
+
+        function closeTeacherPinModal() {
+            document.getElementById('teacherPinModal').classList.add('hidden');
+        }
+
+        function verifyTeacherPin(e) {
+            e.preventDefault();
+            const inputPin = document.getElementById('teacherPinInput').value.trim();
+            if (inputPin === TEACHER_PIN) {
+                closeTeacherPinModal();
+                openTeacherAdminModal();
+            } else {
+                playSound('wrong');
+                document.getElementById('pinErrorMessage').classList.remove('hidden');
+                document.getElementById('teacherPinInput').value = '';
+            }
+        }
+
+        // Student Registration Handling
+        function handleRegistration(e) {
+            e.preventDefault();
+            try {
+                const nameInput = document.getElementById('studentNameInput').value.trim();
+                const gradeRadio = document.querySelector('input[name="gradeSelect"]:checked')?.value || '4';
+
+                if (!nameInput) return;
+
+                currentStudent.name = nameInput;
+                currentStudent.grade = gradeRadio;
+
+                document.getElementById('headerStudentName').textContent = currentStudent.name;
+                document.getElementById('headerStudentGrade').textContent = `الصف ${getGradeArabic(currentStudent.grade)}`;
+                document.getElementById('dashStudentName').textContent = currentStudent.name;
+                document.getElementById('studentHeaderBadge').classList.remove('hidden');
+
+                document.getElementById('studentRegistrationCard').classList.add('hidden');
+                document.getElementById('gameDashboard').classList.remove('hidden');
+
+                listenToFirebase();
+                syncToFirebase();
+
+                if (typeof confetti === 'function') confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 } });
+                playSound('win');
+            } catch (err) {
+                console.error("Registration error:", err);
+            }
+        }
+
+        function getGradeArabic(num) {
+            if (num === '4') return 'الرابع';
+            if (num === '5') return 'الخامس';
+            if (num === '6') return 'السادس';
+            return 'الابتدائي';
+        }
+
+        function addScore(pts) {
+            currentStudent.score += pts;
+            document.getElementById('headerScoreBadge').textContent = `${currentStudent.score} PTS`;
+            syncToFirebase();
+        }
+
+        function startTimer() {
+            clearInterval(activeTimerInterval);
+            timerSeconds = 0;
+            const timerElement = document.getElementById('gameTimer');
+            activeTimerInterval = setInterval(() => {
+                timerSeconds++;
+                const mins = Math.floor(timerSeconds / 60).toString().padStart(2, '0');
+                const secs = (timerSeconds % 60).toString().padStart(2, '0');
+                timerElement.textContent = `${mins}:${secs}`;
+            }, 1000);
+        }
+
+        function stopTimer() {
+            clearInterval(activeTimerInterval);
+        }
+
+        function returnToDashboard() {
+            stopTimer();
+            document.getElementById('gamePlayArena').classList.add('hidden');
+            document.getElementById('portfolioSection').classList.add('hidden');
+            document.getElementById('gameDashboard').classList.remove('hidden');
+        }
+
+        function openTeacherAdminModal() {
+            document.getElementById('adminCurrentStudentName').textContent = currentStudent.name || 'غير مسجل بعد';
+            document.getElementById('adminTotalProducts').textContent = currentStudent.products.length;
+            document.getElementById('adminTotalScore').textContent = `${currentStudent.score} PTS`;
+            document.getElementById('teacherAdminModal').classList.remove('hidden');
+        }
+
+        function closeTeacherAdminModal() {
+            document.getElementById('teacherAdminModal').classList.add('hidden');
+        }
+
+        function adminPrintAllReport() {
+            closeTeacherAdminModal();
+            showPortfolio();
+            setTimeout(() => {
+                window.print();
+            }, 300);
+        }
+
+        function adminResetAllData() {
+            if (confirm('هل أنتِ متأكدة من تصفير جميع المدخلات وسجلات الطالبة وإعادة ضبط الألعاب؟')) {
+                forceGoToHome();
+                closeTeacherAdminModal();
+
+                showModal(`
+                    <div class="space-y-4">
+                        <div class="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-2xl font-bold mx-auto">
+                            <i class="fa-solid fa-check"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-purple-950 font-cairo">تم تصفير البيانات بنجاح</h3>
+                        <p class="text-xs text-slate-600">تم إعادة الضبط وهيئة الصفحة لاستقبال طالبة جديدة.</p>
+                        <button onclick="closeModal()" class="w-full bg-purple-900 text-white py-2.5 rounded-xl font-bold text-xs">موافق</button>
+                    </div>
+                `);
+            }
+        }
+
+        let sentenceState = { currentIdx: 0, selectedWords: [] };
+
+        function startSentenceGame() {
+            document.getElementById('gameDashboard').classList.add('hidden');
+            document.getElementById('gamePlayArena').classList.remove('hidden');
+            startTimer();
+
+            sentenceState.currentIdx = sentenceQuestions.findIndex(q => q.grade === currentStudent.grade);
+            if (sentenceState.currentIdx === -1) sentenceState.currentIdx = 0;
+
+            renderSentenceQuestion();
+        }
+
+        function renderSentenceQuestion() {
+            const q = sentenceQuestions[sentenceState.currentIdx];
+            sentenceState.selectedWords = [];
+            const shuffledWords = [...q.words].sort(() => Math.random() - 0.5);
+
+            const container = document.getElementById('activeGameContainer');
+            container.innerHTML = `
+                <div class="space-y-6">
+                    <div class="flex justify-between items-center border-b pb-3 border-purple-100">
+                        <span class="text-xs font-bold bg-purple-100 text-purple-800 px-3 py-1 rounded-full">
+                            <i class="fa-solid fa-puzzle-piece"></i> تحدي تركيب الجملة
+                        </span>
+                        <span class="text-xs text-slate-500 font-bold">الموضوع: ${q.topic}</span>
+                    </div>
+
+                    <div class="text-center bg-purple-50 p-4 rounded-2xl border border-purple-100">
+                        <h3 class="text-lg font-extrabold font-cairo text-purple-950 mb-1">المطلوب: رتبي الكلمات لتكوين جملة صحيحة</h3>
+                        <p class="text-xs text-slate-600">المعنى بالعربية: <span class="font-bold text-indigo-700">${q.translation}</span></p>
+                    </div>
+
+                    <div class="min-h-[70px] bg-white rounded-2xl p-3 border-2 border-dashed border-purple-300 flex flex-wrap items-center justify-center gap-2 shadow-inner" id="answerDropZone">
+                        <span class="text-xs text-slate-400 pointer-events-none" id="dropPlaceholder">اضغطي على الكلمات بالترتيب لتكوين الجملة هنا...</span>
+                    </div>
+
+                    <div class="flex flex-wrap justify-center gap-3 py-2" id="availableWordsZone">
+                        ${shuffledWords.map((w) => `
+                            <button onclick="pickWord('${w.replace(/'/g, "\\'")}', this)" class="word-chip bg-purple-700 hover:bg-purple-800 text-white font-en font-bold text-lg px-4 py-2.5 rounded-2xl shadow-md btn-bounce">
+                                ${w}
+                            </button>
+                        `).join('')}
+                    </div>
+
+                    <div class="flex justify-between gap-3 pt-4 border-t border-purple-100">
+                        <button onclick="renderSentenceQuestion()" class="text-xs font-bold text-slate-500 hover:text-slate-700 px-4 py-2 rounded-xl bg-slate-100">
+                            <i class="fa-solid fa-rotate-right ml-1"></i> إعادة الترتيب
+                        </button>
+                        <button onclick="checkSentenceAnswer()" class="bg-amber-400 hover:bg-amber-300 text-purple-950 font-extrabold text-sm px-6 py-2.5 rounded-2xl shadow-md btn-bounce">
+                            تحقق وتوليد البطاقة ✨
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function pickWord(word, btnEl) {
+            btnEl.classList.add('hidden');
+            sentenceState.selectedWords.push(word);
+
+            const dropZone = document.getElementById('answerDropZone');
+            document.getElementById('dropPlaceholder')?.classList.add('hidden');
+
+            const chip = document.createElement('span');
+            chip.className = 'bg-indigo-600 text-white font-en font-bold text-base px-3.5 py-1.5 rounded-xl shadow-sm animate-bounce-in';
+            chip.textContent = word;
+            dropZone.appendChild(chip);
+
+            playSound('success');
+        }
+
+        function checkSentenceAnswer() {
+            const q = sentenceQuestions[sentenceState.currentIdx];
+            const studentSentence = sentenceState.selectedWords.join(' ');
+
+            if (studentSentence === q.correct) {
+                stopTimer();
+                playSound('win');
+                
+                const newProduct = {
+                    id: Date.now(),
+                    type: 'Sentence Card',
+                    title: q.badgeTitle,
+                    sentence: q.correct,
+                    translation: q.translation,
+                    studentName: currentStudent.name,
+                    grade: currentStudent.grade,
+                    icon: q.badgeIcon,
+                    bgGradient: q.bgGradient
+                };
+                currentStudent.products.push(newProduct);
+                addScore(50);
+
+                if (typeof confetti === 'function') confetti({ particleCount: 100, spread: 80, origin: { y: 0.5 } });
+
+                showModal(`
+                    <div class="space-y-4">
+                        <div class="w-16 h-16 rounded-3xl bg-amber-100 text-amber-600 flex items-center justify-center text-3xl font-bold mx-auto floating">
+                            <i class="fa-solid fa-award"></i>
+                        </div>
+                        <h3 class="text-2xl font-black font-cairo text-purple-950">إجابة إبداعية صحيحة 100%!</h3>
+                        <p class="text-sm text-slate-600">أحسنتِ يا <strong class="text-purple-700">${currentStudent.name}</strong>! تمت صياغة الجملة بنجاح وتوليد بطاقتكِ.</p>
+
+                        <div class="bg-gradient-to-r ${q.bgGradient} text-white p-5 rounded-2xl shadow-xl text-center font-en space-y-2 my-3">
+                            <i class="fa-solid ${q.badgeIcon} text-3xl text-amber-300"></i>
+                            <h4 class="text-xl font-bold">${q.correct}</h4>
+                            <p class="text-xs text-amber-200 font-cairo">${q.translation}</p>
+                            <div class="text-[10px] bg-black/20 py-1 px-3 rounded-full inline-block font-cairo">
+                                إنجاز الطالبة: ${currentStudent.name} • الصف ${getGradeArabic(currentStudent.grade)}
+                            </div>
+                        </div>
+
+                        <button onclick="closeModal(); returnToDashboard();" class="w-full bg-purple-900 text-white font-bold py-3 rounded-2xl btn-bounce">
+                            حفظ البطاقة والعودة للوحة التحديات
+                        </button>
+                    </div>
+                `);
+            } else {
+                playSound('wrong');
+                showModal(`
+                    <div class="space-y-4">
+                        <div class="w-16 h-16 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center text-3xl font-bold mx-auto">
+                            <i class="fa-solid fa-face-frown"></i>
+                        </div>
+                        <h3 class="text-xl font-bold font-cairo text-purple-950">محاولة قريبة!</h3>
+                        <p class="text-sm text-slate-600">ترتيب الكلمات يتطلب القليل من التعديل لتصبح الجملة صحيحة.</p>
+                        <button onclick="closeModal(); renderSentenceQuestion();" class="w-full bg-amber-400 text-purple-950 font-bold py-3 rounded-2xl btn-bounce">
+                            حاولي مرة أخرى 🔄
+                        </button>
+                    </div>
+                `);
+            }
+        }
+
+        let matchState = { selectedLeft: null, selectedRight: null, matchedCount: 0 };
+
+        function startMatchingGame() {
+            document.getElementById('gameDashboard').classList.add('hidden');
+            document.getElementById('gamePlayArena').classList.remove('hidden');
+            startTimer();
+            matchState = { selectedLeft: null, selectedRight: null, matchedCount: 0 };
+
+            const shuffledLeft = [...matchingVocabData].sort(() => Math.random() - 0.5);
+            const shuffledRight = [...matchingVocabData].sort(() => Math.random() - 0.5);
+
+            const container = document.getElementById('activeGameContainer');
+            container.innerHTML = `
+                <div class="space-y-6">
+                    <div class="flex justify-between items-center border-b pb-3 border-pink-100">
+                        <span class="text-xs font-bold bg-pink-100 text-pink-800 px-3 py-1 rounded-full">
+                            <i class="fa-solid fa-shapes"></i> تحدي مطابقة الكلمات والأضداد
+                        </span>
+                        <span class="text-xs text-slate-500 font-bold">الحصيلة اللغوية</span>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="space-y-3" id="matchLeftCol">
+                            ${shuffledLeft.map(item => `
+                                <button onclick="selectMatchTile('left', ${item.id}, this)" class="tile-btn w-full bg-white hover:bg-pink-50 border-2 border-pink-200 text-pink-950 font-en font-bold text-base p-4 rounded-2xl shadow-sm text-center btn-bounce">
+                                    ${item.left}
+                                </button>
+                            `).join('')}
+                        </div>
+                        <div class="space-y-3" id="matchRightCol">
+                            ${shuffledRight.map(item => `
+                                <button onclick="selectMatchTile('right', ${item.id}, this)" class="tile-btn w-full bg-white hover:bg-pink-50 border-2 border-pink-200 text-purple-950 font-bold text-sm p-4 rounded-2xl shadow-sm text-center btn-bounce">
+                                    ${item.right}
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function selectMatchTile(side, id, el) {
+            playSound('success');
+            if (side === 'left') {
+                document.querySelectorAll('#matchLeftCol .tile-btn').forEach(b => b.classList.remove('border-pink-600', 'bg-pink-100'));
+                el.classList.add('border-pink-600', 'bg-pink-100');
+                matchState.selectedLeft = { id, el };
+            } else {
+                document.querySelectorAll('#matchRightCol .tile-btn').forEach(b => b.classList.remove('border-pink-600', 'bg-pink-100'));
+                el.classList.add('border-pink-600', 'bg-pink-100');
+                matchState.selectedRight = { id, el };
+            }
+
+            if (matchState.selectedLeft && matchState.selectedRight) {
+                if (matchState.selectedLeft.id === matchState.selectedRight.id) {
+                    playSound('win');
+                    matchState.selectedLeft.el.classList.add('opacity-40', 'pointer-events-none', 'bg-emerald-100');
+                    matchState.selectedRight.el.classList.add('opacity-40', 'pointer-events-none', 'bg-emerald-100');
+                    matchState.matchedCount++;
+                    matchState.selectedLeft = null;
+                    matchState.selectedRight = null;
+
+                    if (matchState.matchedCount === matchingVocabData.length) {
+                        stopTimer();
+                        
+                        currentStudent.products.push({
+                            id: Date.now(),
+                            type: 'Vocab Master Badge',
+                            title: 'وسام مطابقة الأضداد والمفردات',
+                            sentence: 'Excellent Vocabulary Matching Mastery!',
+                            translation: 'إتقان كامل لمطابقة الكلمات والأضداد',
+                            studentName: currentStudent.name,
+                            grade: currentStudent.grade,
+                            icon: 'fa-cubes',
+                            bgGradient: 'from-pink-500 to-rose-500'
+                        });
+                        addScore(40);
+
+                        if (typeof confetti === 'function') confetti({ particleCount: 80 });
+
+                        showModal(`
+                            <div class="space-y-4">
+                                <div class="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-3xl font-bold mx-auto">
+                                    <i class="fa-solid fa-star"></i>
+                                </div>
+                                <h3 class="text-2xl font-black font-cairo text-purple-950">مطابقة متكاملة وسريعة!</h3>
+                                <button onclick="closeModal(); returnToDashboard();" class="w-full bg-pink-600 text-white font-bold py-3 rounded-2xl btn-bounce">
+                                    حفظ الوسام والعودة للتحديات
+                                </button>
+                            </div>
+                        `);
+                    }
+                } else {
+                    playSound('wrong');
+                    setTimeout(() => {
+                        matchState.selectedLeft?.el.classList.remove('border-pink-600', 'bg-pink-100');
+                        matchState.selectedRight?.el.classList.remove('border-pink-600', 'bg-pink-100');
+                        matchState.selectedLeft = null;
+                        matchState.selectedRight = null;
+                    }, 500);
+                }
+            }
+        }
+
+        let verbsState = { idx: 0 };
+
+        function startVerbsGame() {
+            document.getElementById('gameDashboard').classList.add('hidden');
+            document.getElementById('gamePlayArena').classList.remove('hidden');
+            startTimer();
+            verbsState.idx = 0;
+            renderVerbQuestion();
+        }
+
+        function renderVerbQuestion() {
+            const v = verbsPuzzleData[verbsState.idx];
+            const container = document.getElementById('activeGameContainer');
+
+            container.innerHTML = `
+                <div class="space-y-6">
+                    <div class="flex justify-between items-center border-b pb-3 border-amber-100">
+                        <span class="text-xs font-bold bg-amber-100 text-amber-800 px-3 py-1 rounded-full">
+                            <i class="fa-solid fa-bolt"></i> تحدي لغز الأفعال الشاذة (Irregular Verbs)
+                        </span>
+                        <span class="text-xs text-slate-500 font-bold">السؤال ${verbsState.idx + 1} من ${verbsPuzzleData.length}</span>
+                    </div>
+
+                    <div class="text-center bg-amber-50 p-6 rounded-3xl border-2 border-amber-200">
+                        <span class="text-xs text-amber-800 font-bold block mb-1">الفعل في المضارع (Present):</span>
+                        <h3 class="text-4xl font-en font-black text-purple-950 mb-2">${v.present}</h3>
+                        <p class="text-xs text-slate-600 font-bold">المعنى: ${v.arabic}</p>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-3">
+                        ${v.pastOptions.map(opt => `
+                            <button onclick="checkVerbAnswer('${opt}', '${v.correct}')" class="bg-white hover:bg-amber-100 border-2 border-amber-300 text-purple-950 font-en font-bold text-xl py-4 rounded-2xl shadow-sm btn-bounce">
+                                ${opt}
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function checkVerbAnswer(selected, correct) {
+            if (selected === correct) {
+                playSound('win');
+                verbsState.idx++;
+                if (verbsState.idx < verbsPuzzleData.length) {
+                    renderVerbQuestion();
+                } else {
+                    stopTimer();
+                    
+                    currentStudent.products.push({
+                        id: Date.now(),
+                        type: 'Grammar Shield Badge',
+                        title: 'درع إتقان الأفعال الشاذة',
+                        sentence: 'Irregular Verbs Master Champion',
+                        translation: 'التميز المتقدم في تمييز تصاريف الأفعال',
+                        studentName: currentStudent.name,
+                        grade: currentStudent.grade,
+                        icon: 'fa-bolt',
+                        bgGradient: 'from-amber-500 to-orange-600'
+                    });
+                    addScore(50);
+
+                    if (typeof confetti === 'function') confetti({ particleCount: 90 });
+
+                    showModal(`
+                        <div class="space-y-4">
+                            <div class="w-16 h-16 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-3xl font-bold mx-auto">
+                                <i class="fa-solid fa-trophy"></i>
+                            </div>
+                            <h3 class="text-2xl font-black font-cairo text-purple-950">إتقان مبهر للأفعال الشاذة!</h3>
+                            <button onclick="closeModal(); returnToDashboard();" class="w-full bg-amber-500 text-white font-bold py-3 rounded-2xl btn-bounce">
+                                العودة للتحديات
+                            </button>
+                        </div>
+                    `);
+                }
+            } else {
+                playSound('wrong');
+                showModal(`
+                    <div class="space-y-3 text-center">
+                        <h4 class="text-lg font-bold text-purple-950">محاولة غير دقيقة</h4>
+                        <button onclick="closeModal()" class="bg-purple-900 text-white text-xs px-5 py-2.5 rounded-xl font-bold">إعادة المحاولة</button>
+                    </div>
+                `);
+            }
+        }
+
+        let interviewState = { idx: 0 };
+
+        function startInterviewGame() {
+            document.getElementById('gameDashboard').classList.add('hidden');
+            document.getElementById('gamePlayArena').classList.remove('hidden');
+            startTimer();
+            interviewState.idx = 0;
+            renderInterviewQuestion();
+        }
+
+        function renderInterviewQuestion() {
+            const item = interviewQuestionsData[interviewState.idx];
+            const container = document.getElementById('activeGameContainer');
+
+            container.innerHTML = `
+                <div class="space-y-6">
+                    <div class="flex justify-between items-center border-b pb-3 border-emerald-100">
+                        <span class="text-xs font-bold bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full">
+                            <i class="fa-solid fa-user-graduate"></i> المعلم الصغير والتفكير الناقد
+                        </span>
+                        <span class="text-xs text-slate-500 font-bold">سؤال ${interviewState.idx + 1}</span>
+                    </div>
+
+                    <div class="bg-emerald-50 p-5 rounded-2xl border border-emerald-200">
+                        <p class="text-sm font-bold text-slate-800 leading-relaxed">${item.question}</p>
+                    </div>
+
+                    <div class="space-y-3">
+                        ${item.options.map((opt, i) => `
+                            <button onclick="checkInterviewAnswer(${i})" class="w-full text-right bg-white hover:bg-emerald-50 border-2 border-emerald-200 p-4 rounded-2xl text-sm font-bold text-purple-950 btn-bounce flex items-center gap-3">
+                                <span class="w-7 h-7 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs">${i + 1}</span>
+                                <span class="font-en text-base">${opt}</span>
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function checkInterviewAnswer(selectedIdx) {
+            const item = interviewQuestionsData[interviewState.idx];
+            if (selectedIdx === item.correctIndex) {
+                playSound('win');
+                addScore(30);
+
+                showModal(`
+                    <div class="space-y-4">
+                        <div class="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-2xl font-bold mx-auto">
+                            <i class="fa-solid fa-circle-check"></i>
+                        </div>
+                        <h3 class="text-xl font-bold font-cairo text-purple-950">إجابة التفكير الناقد صحيحة!</h3>
+                        <p class="text-xs text-slate-600">${item.feedback}</p>
+                        <button onclick="closeModal(); returnToDashboard();" class="w-full bg-emerald-600 text-white font-bold py-3 rounded-2xl btn-bounce">
+                            إنهاء التحدي والحصول على التقييم
+                        </button>
+                    </div>
+                `);
+            } else {
+                playSound('wrong');
+                showModal(`
+                    <div class="space-y-3">
+                        <h4 class="text-lg font-bold text-purple-950">فكري ملياً بالمعنى</h4>
+                        <button onclick="closeModal()" class="bg-purple-900 text-white text-xs px-4 py-2 rounded-xl">حاولي ثانية</button>
+                    </div>
+                `);
+            }
+        }
+
+        function startStoryMaker() {
+            document.getElementById('gameDashboard').classList.add('hidden');
+            document.getElementById('gamePlayArena').classList.remove('hidden');
+
+            const container = document.getElementById('activeGameContainer');
+            container.innerHTML = `
+                <div class="space-y-6">
+                    <div class="flex justify-between items-center border-b pb-3 border-blue-100">
+                        <span class="text-xs font-bold bg-blue-100 text-blue-800 px-3 py-1 rounded-full">
+                            <i class="fa-solid fa-book-journal-whills"></i> صانع القصة الرقمية المصغرة
+                        </span>
+                        <span class="text-xs text-slate-500 font-bold">تأليف وإبداع</span>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">اختاري عنوان القصة:</label>
+                            <select id="storyTitleSelect" class="w-full p-3 rounded-xl border border-slate-300 font-bold text-sm">
+                                <option value="My Unforgettable Weekend">My Unforgettable Weekend (عطلتي السعيدة)</option>
+                                <option value="A Journey to Dream Job">A Journey to Dream Job (رحلتي لوظيفة احلامي)</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">أكملي الجملة القصصية الرئيسية:</label>
+                            <input type="text" id="storySentenceInput" value="Last weekend, I created an amazing English digital project." class="w-full p-3 rounded-xl border border-slate-300 font-en font-bold text-sm">
+                        </div>
+
+                        <button onclick="generateStoryBook()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-2xl btn-bounce">
+                            إنشاء وطباعة القصة الرقمية 📖
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function generateStoryBook() {
+            const title = document.getElementById('storyTitleSelect').value;
+            const sentence = document.getElementById('storySentenceInput').value;
+
+            const newStory = {
+                id: Date.now(),
+                type: 'Digital Storybook',
+                title: title,
+                sentence: sentence,
+                translation: 'قصة رقمية مصغرة مؤلفة بواسطة المبدعة',
+                studentName: currentStudent.name,
+                grade: currentStudent.grade,
+                icon: 'fa-book-bookmark',
+                bgGradient: 'from-blue-600 via-indigo-600 to-purple-600'
+            };
+
+            currentStudent.products.push(newStory);
+            addScore(40);
+
+            if (typeof confetti === 'function') confetti({ particleCount: 100 });
+
+            showModal(`
+                <div class="space-y-4">
+                    <h3 class="text-2xl font-black font-cairo text-purple-950">تم نشر قصتكِ الرقمية!</h3>
+                    <div class="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-6 rounded-3xl font-en text-center shadow-xl space-y-2">
+                        <span class="text-xs text-amber-300 font-cairo uppercase font-bold block">Written by Author: ${currentStudent.name}</span>
+                        <h4 class="text-2xl font-bold">${title}</h4>
+                        <p class="text-sm text-blue-100">${sentence}</p>
+                    </div>
+                    <button onclick="closeModal(); returnToDashboard();" class="w-full bg-blue-600 text-white font-bold py-3 rounded-2xl btn-bounce">
+                        العودة للتحديات
+                    </button>
+                </div>
+            `);
+        }
+
+        function startFinalQuiz() {
+            currentStudent.products.push({
+                id: Date.now(),
+                type: 'Official Certificate',
+                title: 'شهادة سفيرة اللغة الإنجليزية والتميز الرقمي',
+                sentence: 'Official Top Goal Enrichment Ambassador Certificate',
+                translation: 'شهادة تميز معتمدة لإنجاز البرنامج الإثرائي كاملاً',
+                studentName: currentStudent.name,
+                grade: currentStudent.grade,
+                icon: 'fa-award',
+                bgGradient: 'from-amber-500 via-purple-700 to-indigo-900'
+            });
+            addScore(100);
+
+            if (typeof confetti === 'function') confetti({ particleCount: 150, spread: 100 });
+            playSound('win');
+
+            showModal(`
+                <div class="space-y-4">
+                    <div class="w-20 h-20 rounded-full bg-amber-400 text-purple-950 flex items-center justify-center text-4xl font-bold mx-auto floating shadow-xl">
+                        <i class="fa-solid fa-crown"></i>
+                    </div>
+                    <h3 class="text-2xl font-black font-cairo text-purple-950">مبارك! صرتِ سفيرة اللغة الإنجليزية</h3>
+                    <p class="text-sm text-slate-600">تهانينا للطالبة <strong class="text-purple-800">${currentStudent.name}</strong> لإتمام التحديات الرقمية والإثرائية بنجاح باهر.</p>
+                    <button onclick="closeModal(); showPortfolio();" class="w-full bg-gradient-to-r from-amber-400 to-amber-500 text-purple-950 font-black py-3.5 rounded-2xl shadow-lg btn-bounce">
+                        عرض وتصدير جميع شهاداتي وبطاقاتي 🏆
+                    </button>
+                </div>
+            `);
+        }
+
+        function updatePortfolioCount() {
+            document.getElementById('outputBadgeCount').textContent = currentStudent.products.length;
+        }
+
+        function showPortfolio() {
+            document.getElementById('gameDashboard').classList.add('hidden');
+            document.getElementById('gamePlayArena').classList.add('hidden');
+            document.getElementById('portfolioSection').classList.remove('hidden');
+
+            const container = document.getElementById('portfolioCardsContainer');
+            if (currentStudent.products.length === 0) {
+                container.innerHTML = `
+                    <div class="col-span-full text-center py-12 glass-panel rounded-3xl">
+                        <i class="fa-solid fa-folder-open text-4xl text-slate-300 mb-3"></i>
+                        <p class="text-slate-500 font-bold">لم تقومي بتوليد بطاقات حتى الآن. ابدأي بتنفيذ التحديات!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = currentStudent.products.map(p => `
+                <div class="printable-card glass-panel rounded-3xl p-6 shadow-xl border-2 border-amber-300 relative overflow-hidden flex flex-col justify-between">
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-center border-b pb-3 border-slate-200">
+                            <span class="text-xs font-bold text-slate-500">وزارة التعليم • مدرسة الهيشة</span>
+                            <span class="text-xs font-bold bg-amber-100 text-amber-800 px-3 py-1 rounded-full">${p.type}</span>
+                        </div>
+
+                        <div class="bg-gradient-to-r ${p.bgGradient} text-white p-6 rounded-2xl text-center font-en space-y-2 shadow-md">
+                            <i class="fa-solid ${p.icon} text-3xl text-amber-300"></i>
+                            <h4 class="text-xl font-extrabold">${p.sentence}</h4>
+                            <p class="text-xs text-purple-100 font-cairo">${p.translation}</p>
+                        </div>
+
+                        <div class="text-center pt-2">
+                            <p class="text-xs text-slate-500">طالبة التميز والإثراء:</p>
+                            <h5 class="text-lg font-black font-cairo text-purple-950">${p.studentName}</h5>
+                            <p class="text-xs font-bold text-slate-600">الصف ${getGradeArabic(p.grade)} الابتدائي</p>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 pt-4 border-t border-slate-200 flex justify-between items-center text-[11px] font-bold text-slate-500">
+                        <span>معلمة المادة: منال المعاوي</span>
+                        <span>مديرة المدرسة: غلا آل جدران</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function showModal(htmlContent) {
+            document.getElementById('modalBody').innerHTML = htmlContent;
+            document.getElementById('feedbackModal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('feedbackModal').classList.add('hidden');
+        }
+
+        // Initialize App on Window Load
+        window.onload = function() {
+            forceGoToHome();
+        };
+    </script>
+</body>
+</html>
