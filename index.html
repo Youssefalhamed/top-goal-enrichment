@@ -7,7 +7,7 @@
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.1/css/all.min.css">
     <!-- Canvas Confetti -->
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <!-- Google Fonts -->
@@ -533,7 +533,6 @@
 
         // Global Navigation & Warning Handling
         function confirmGoHome() {
-            // Check if user is currently inside an active play arena
             const isPlaying = !document.getElementById('gamePlayArena').classList.contains('hidden');
             if (isPlaying) {
                 playSound('wrong');
@@ -551,7 +550,6 @@
             closeConfirmHomeModal();
             stopTimer();
 
-            // Clear play arena content
             document.getElementById('activeGameContainer').innerHTML = '';
 
             document.getElementById('gamePlayArena').classList.add('hidden');
@@ -560,7 +558,6 @@
             document.getElementById('teacherPinModal').classList.add('hidden');
             document.getElementById('feedbackModal').classList.add('hidden');
 
-            // Reset current session data if returning to home completely
             currentStudent = {
                 name: '',
                 grade: '4',
@@ -606,27 +603,35 @@
             }
         }
 
-        // Student Registration Handling
+        // Student Registration Handling (Fixed to ensure valid transition)
         function handleRegistration(e) {
             e.preventDefault();
-            const nameInput = document.getElementById('studentNameInput').value.trim();
-            const gradeRadio = document.querySelector('input[name="gradeSelect"]:checked').value;
+            try {
+                const nameInput = document.getElementById('studentNameInput').value.trim();
+                const gradeRadio = document.querySelector('input[name="gradeSelect"]:checked')?.value || '4';
 
-            if (!nameInput) return;
+                if (!nameInput) return;
 
-            currentStudent.name = nameInput;
-            currentStudent.grade = gradeRadio;
+                currentStudent.name = nameInput;
+                currentStudent.grade = gradeRadio;
 
-            document.getElementById('headerStudentName').textContent = currentStudent.name;
-            document.getElementById('headerStudentGrade').textContent = `الصف ${getGradeArabic(currentStudent.grade)}`;
-            document.getElementById('dashStudentName').textContent = currentStudent.name;
-            document.getElementById('studentHeaderBadge').classList.remove('hidden');
+                document.getElementById('headerStudentName').textContent = currentStudent.name;
+                document.getElementById('headerStudentGrade').textContent = `الصف ${getGradeArabic(currentStudent.grade)}`;
+                document.getElementById('dashStudentName').textContent = currentStudent.name;
+                document.getElementById('studentHeaderBadge').classList.remove('hidden');
 
-            document.getElementById('studentRegistrationCard').classList.add('hidden');
-            document.getElementById('gameDashboard').classList.remove('hidden');
+                document.getElementById('studentRegistrationCard').classList.add('hidden');
+                document.getElementById('gameDashboard').classList.remove('hidden');
 
-            confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 } });
-            playSound('win');
+                if (typeof confetti === 'function') {
+                    confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 } });
+                }
+                playSound('win');
+            } catch (err) {
+                console.error("Registration transition error:", err);
+                document.getElementById('studentRegistrationCard').classList.add('hidden');
+                document.getElementById('gameDashboard').classList.remove('hidden');
+            }
         }
 
         function getGradeArabic(num) {
@@ -781,7 +786,7 @@
                 stopTimer();
                 playSound('win');
                 addScore(50);
-                confetti({ particleCount: 100, spread: 80, origin: { y: 0.5 } });
+                if (typeof confetti === 'function') confetti({ particleCount: 100, spread: 80, origin: { y: 0.5 } });
 
                 const newProduct = {
                     id: Date.now(),
@@ -901,7 +906,7 @@
                     if (matchState.matchedCount === matchingVocabData.length) {
                         stopTimer();
                         addScore(40);
-                        confetti({ particleCount: 80 });
+                        if (typeof confetti === 'function') confetti({ particleCount: 80 });
 
                         currentStudent.products.push({
                             id: Date.now(),
@@ -989,7 +994,7 @@
                 } else {
                     stopTimer();
                     addScore(50);
-                    confetti({ particleCount: 90 });
+                    if (typeof confetti === 'function') confetti({ particleCount: 90 });
 
                     currentStudent.products.push({
                         id: Date.now(),
@@ -1136,7 +1141,7 @@
             const sentence = document.getElementById('storySentenceInput').value;
 
             addScore(40);
-            confetti({ particleCount: 100 });
+            if (typeof confetti === 'function') confetti({ particleCount: 100 });
 
             const newStory = {
                 id: Date.now(),
@@ -1170,7 +1175,7 @@
 
         function startFinalQuiz() {
             addScore(100);
-            confetti({ particleCount: 150, spread: 100 });
+            if (typeof confetti === 'function') confetti({ particleCount: 150, spread: 100 });
             playSound('win');
 
             currentStudent.products.push({
