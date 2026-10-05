@@ -350,7 +350,7 @@
         </div>
     </div>
 
-    <!-- Teacher Admin Management Panel Modal (With Excel Export Option) -->
+    <!-- Teacher Admin Management Panel Modal -->
     <div id="teacherAdminModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
         <div class="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 space-y-6 shadow-2xl border-4 border-amber-400 relative max-h-[90vh] overflow-y-auto">
             <button onclick="closeTeacherAdminModal()" class="absolute top-4 left-4 w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center font-bold hover:bg-slate-200">
@@ -444,14 +444,18 @@
             appId: "1:123456789:web:abcdef"
         };
 
-        // Initialize Firebase safely
+        // Initialize Firebase safely with try/catch to avoid freezing
         let db = null;
         try {
-            firebase.initializeApp(firebaseConfig);
-            db = firebase.database();
-            console.log("Firebase Connected Successfully!");
+            if (typeof firebase !== 'undefined' && !firebase.apps.length) {
+                firebase.initializeApp(firebaseConfig);
+                db = firebase.database();
+                console.log("Firebase Connected Successfully!");
+            } else if (typeof firebase !== 'undefined' && firebase.apps.length) {
+                db = firebase.database();
+            }
         } catch(e) {
-            console.log("Firebase Initialization error:", e);
+            console.log("Firebase Initialization warning:", e);
         }
 
         // App Core State
@@ -464,28 +468,36 @@
 
         let timerSeconds = 0;
         let activeTimerInterval = null;
-        let cachedStudentsData = null; // لتخزين بيانات الطالبات مؤقتاً لتصدير الإكسل
+        let cachedStudentsData = null;
 
-        // Sync Data to Firebase Cloud Realtime DB
+        // Sync Data to Firebase Cloud Realtime DB safely
         function syncToFirebase() {
-            if (!db || !currentStudent.name) return;
-            const safeKey = currentStudent.name.replace(/[.#$\[\]]/g, "_");
-            db.ref('students/' + safeKey).set(currentStudent);
+            try {
+                if (!db || !currentStudent.name) return;
+                const safeKey = currentStudent.name.replace(/[.#$\[\]]/g, "_");
+                db.ref('students/' + safeKey).set(currentStudent);
+            } catch(err) {
+                console.log("Sync error:", err);
+            }
         }
 
         // Listen for realtime updates from Firebase for current student
         function listenToFirebase() {
-            if (!db || !currentStudent.name) return;
-            const safeKey = currentStudent.name.replace(/[.#$\[\]]/g, "_");
-            db.ref('students/' + safeKey).on('value', (snapshot) => {
-                const data = snapshot.val();
-                if (data) {
-                    currentStudent = data;
-                    if (!currentStudent.products) currentStudent.products = [];
-                    document.getElementById('headerScoreBadge').textContent = `${currentStudent.score} PTS`;
-                    updatePortfolioCount();
-                }
-            });
+            try {
+                if (!db || !currentStudent.name) return;
+                const safeKey = currentStudent.name.replace(/[.#$\[\]]/g, "_");
+                db.ref('students/' + safeKey).on('value', (snapshot) => {
+                    const data = snapshot.val();
+                    if (data) {
+                        currentStudent = data;
+                        if (!currentStudent.products) currentStudent.products = [];
+                        document.getElementById('headerScoreBadge').textContent = `${currentStudent.score} PTS`;
+                        updatePortfolioCount();
+                    }
+                });
+            } catch(err) {
+                console.log("Listener error:", err);
+            }
         }
 
         // Educational Content Questions Database
@@ -617,7 +629,8 @@
                 products: []
             };
 
-            document.getElementById('studentNameInput').value = '';
+            const nameInput = document.getElementById('studentNameInput');
+            if (nameInput) nameInput.value = '';
             document.getElementById('studentHeaderBadge').classList.add('hidden');
             updatePortfolioCount();
 
@@ -722,23 +735,23 @@
             document.getElementById('gameDashboard').classList.remove('hidden');
         }
 
-        // Open Teacher Admin Modal & Fetch All Students from Firebase Cloud
+        // Open Teacher Admin Modal & Fetch All Students safely
         function openTeacherAdminModal() {
             document.getElementById('teacherAdminModal').classList.remove('hidden');
             const container = document.getElementById('teacherStudentsListContainer');
             container.innerHTML = `<p class="text-xs text-slate-500 text-center py-4"><i class="fa-solid fa-spinner fa-spin ml-1"></i> جاري جلب سجلات الطالبات من السحابة...</p>`;
 
             if (!db) {
-                container.innerHTML = `<p class="text-xs text-rose-500 text-center py-4">لم يتم الاتصال بقاعدة بيانات Firebase بنجاح!</p>`;
+                container.innerHTML = `<p class="text-xs text-rose-500 text-center py-4">تعذر الاتصال بقاعدة البيانات. تأكد من إعدادات الاتصال.</p>`;
                 return;
             }
 
             db.ref('students').once('value', (snapshot) => {
                 const studentsData = snapshot.val();
-                cachedStudentsData = studentsData; // حفظ البيانات لتصدير الإكسل
+                cachedStudentsData = studentsData;
 
                 if (!studentsData) {
-                    container.innerHTML = `<p class="text-xs text-slate-500 text-center py-4">لا توجد طالبات مسجلات حتى الآن.</p>";
+                    container.innerHTML = `<p class="text-xs text-slate-500 text-center py-4">لا توجد طالبات مسجلات حتى الآن.</p>`;
                     return;
                 }
 
@@ -760,17 +773,19 @@
                 });
 
                 container.innerHTML = html;
+            }, (error) => {
+                container.innerHTML = `<p class="text-xs text-rose-500 text-center py-4">خطأ في جلب البيانات: ${error.message}</p>`;
             });
         }
 
-        // Export data to Excel (CSV format compatible with Excel)
+        // Export data to Excel (CSV format)
         function exportToExcel() {
             if (!cachedStudentsData) {
                 alert('لا توجد بيانات لتصديرها حالياً. قومي بفتح لوحة الإدارة أولاً لجلب البيانات.');
                 return;
             }
 
-            let csvContent = "\uFEFF"; // دعم اللغة العربية بشكل صحيح في إكسل
+            let csvContent = "\uFEFF";
             csvContent += "اسم الطالبة,الصف الدراسي,إجمالي النقاط,عدد البطاقات والإنجازات\n";
 
             Object.values(cachedStudentsData).forEach(st => {
@@ -1327,7 +1342,8 @@
         }
 
         function updatePortfolioCount() {
-            document.getElementById('outputBadgeCount').textContent = currentStudent.products.length;
+            const badgeCountEl = document.getElementById('outputBadgeCount');
+            if (badgeCountEl) badgeCountEl.textContent = currentStudent.products.length;
         }
 
         function showPortfolio() {
@@ -1362,7 +1378,7 @@
 
                         <div class="text-center pt-2">
                             <p class="text-xs text-slate-500">طالبة التميز والإثراء:</p>
-                            <h5 class="text-lg font-black font-cairo text-purple-955">${p.studentName}</h5>
+                            <h5 class="text-lg font-black font-cairo text-purple-950">${p.studentName}</h5>
                             <p class="text-xs font-bold text-slate-600">الصف ${getGradeArabic(p.grade)} الابتدائي</p>
                         </div>
                     </div>
@@ -1384,9 +1400,13 @@
             document.getElementById('feedbackModal').classList.add('hidden');
         }
 
-        // Initialize App on Window Load
+        // Initialize App safely on Window Load
         window.onload = function() {
-            forceGoToHome();
+            try {
+                forceGoToHome();
+            } catch(e) {
+                console.log("Initialization error:", e);
+            }
         };
     </script>
 </body>
