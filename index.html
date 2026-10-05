@@ -350,9 +350,9 @@
         </div>
     </div>
 
-    <!-- Teacher Admin Management Panel Modal -->
+    <!-- Teacher Admin Management Panel Modal (Updated to show all students synced from Firebase) -->
     <div id="teacherAdminModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
-        <div class="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 space-y-6 shadow-2xl border-4 border-amber-400 relative">
+        <div class="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 space-y-6 shadow-2xl border-4 border-amber-400 relative max-h-[90vh] overflow-y-auto">
             <button onclick="closeTeacherAdminModal()" class="absolute top-4 left-4 w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center font-bold hover:bg-slate-200">
                 <i class="fa-solid fa-xmark"></i>
             </button>
@@ -362,37 +362,29 @@
                     <i class="fa-solid fa-user-shield"></i>
                 </div>
                 <div>
-                    <h3 class="text-xl font-black font-cairo text-purple-950">لوحة المعلمة والإدارة</h3>
-                    <p class="text-xs text-slate-500">إدارة مخرجات وسجلات إثراءات الطالبة</p>
+                    <h3 class="text-xl font-black font-cairo text-purple-950">لوحة المعلمة والإدارة (سجلات الطالبات)</h3>
+                    <p class="text-xs text-slate-500">متابعة إنجازات الطالبات وحلولهن المتزامنة عبر السحابة</p>
                 </div>
             </div>
 
-            <!-- Stats Overview -->
-            <div class="grid grid-cols-3 gap-3 text-center bg-purple-50 p-4 rounded-2xl border border-purple-100">
-                <div>
-                    <span class="text-[10px] text-slate-500 font-bold block">اسم الطالبة</span>
-                    <strong id="adminCurrentStudentName" class="text-xs text-purple-900 font-bold">غير مسجل</strong>
-                </div>
-                <div>
-                    <span class="text-[10px] text-slate-500 font-bold block">البطاقات المنشأة</span>
-                    <strong id="adminTotalProducts" class="text-xs text-purple-900 font-bold">0</strong>
-                </div>
-                <div>
-                    <span class="text-[10px] text-slate-500 font-bold block">إجمالي النقاط</span>
-                    <strong id="adminTotalScore" class="text-xs text-purple-900 font-bold">0 PTS</strong>
+            <!-- Students Live List from Firebase -->
+            <div class="space-y-3">
+                <h4 class="text-sm font-bold text-purple-950"><i class="fa-solid fa-users ml-1"></i> الطالبات المسجلات والمنجزات:</h4>
+                <div id="teacherStudentsListContainer" class="space-y-2 max-h-[300px] overflow-y-auto p-2 bg-slate-50 rounded-2xl border border-slate-200">
+                    <p class="text-xs text-slate-400 text-center py-4">جاري تحميل سجلات الطالبات من السحابة...</p>
                 </div>
             </div>
 
             <!-- Management Action Buttons -->
-            <div class="space-y-3">
+            <div class="space-y-3 pt-2">
                 <button onclick="adminPrintAllReport()" class="w-full bg-purple-900 hover:bg-purple-950 text-white font-bold py-3.5 rounded-2xl text-xs shadow-md btn-bounce flex items-center justify-center gap-2">
                     <i class="fa-solid fa-print text-amber-300"></i>
-                    <span>طباعة المنجزات والبطاقات الصادرة</span>
+                    <span>طباعة تقرير المنجزات الكامل</span>
                 </button>
 
                 <button onclick="adminResetAllData()" class="w-full bg-rose-50 hover:bg-rose-100 text-rose-700 border-2 border-rose-200 font-bold py-3 rounded-2xl text-xs btn-bounce flex items-center justify-center gap-2">
                     <i class="fa-solid fa-rotate-left"></i>
-                    <span>تصفير المدخلات والسجلات (بدء جلسة جديدة)</span>
+                    <span>تصفير وسجلات قاعدة البيانات بالكامل</span>
                 </button>
             </div>
 
@@ -474,7 +466,7 @@
             db.ref('students/' + safeKey).set(currentStudent);
         }
 
-        // Listen for realtime updates from Firebase
+        // Listen for realtime updates from Firebase for current student
         function listenToFirebase() {
             if (!db || !currentStudent.name) return;
             const safeKey = currentStudent.name.replace(/[.#$\[\]]/g, "_");
@@ -667,6 +659,7 @@
 
                 currentStudent.name = nameInput;
                 currentStudent.grade = gradeRadio;
+                if(!currentStudent.products) currentStudent.products = [];
 
                 document.getElementById('headerStudentName').textContent = currentStudent.name;
                 document.getElementById('headerStudentGrade').textContent = `الصف ${getGradeArabic(currentStudent.grade)}`;
@@ -676,8 +669,8 @@
                 document.getElementById('studentRegistrationCard').classList.add('hidden');
                 document.getElementById('gameDashboard').classList.remove('hidden');
 
-                listenToFirebase();
                 syncToFirebase();
+                listenToFirebase();
 
                 if (typeof confetti === 'function') confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 } });
                 playSound('win');
@@ -722,11 +715,49 @@
             document.getElementById('gameDashboard').classList.remove('hidden');
         }
 
+        // Open Teacher Admin Modal & Fetch All Students from Firebase Cloud
         function openTeacherAdminModal() {
-            document.getElementById('adminCurrentStudentName').textContent = currentStudent.name || 'غير مسجل بعد';
-            document.getElementById('adminTotalProducts').textContent = currentStudent.products.length;
-            document.getElementById('adminTotalScore').textContent = `${currentStudent.score} PTS`;
             document.getElementById('teacherAdminModal').classList.remove('hidden');
+            const container = document.getElementById('teacherStudentsListContainer');
+            container.innerHTML = `<p class="text-xs text-slate-500 text-center py-4"><i class="fa-solid fa-spinner fa-spin ml-1"></i> جاري جلب سجلات الطالبات من السحابة...</p>`;
+
+            if (!db) {
+                container.innerHTML = `<p class="text-xs text-rose-500 text-center py-4">لم يتم الاتصال بقاعدة بيانات Firebase بنجاح!</p>`;
+                return;
+            }
+
+            db.ref('students').once('value', (snapshot) => {
+                const studentsData = snapshot.val();
+                if (!studentsData) {
+                    container.innerHTML = `<p class="text-xs text-slate-500 text-center py-4">لا توجد طالبات مسجلات حتى الآن.</p>`;
+                    return;
+                }
+
+                let html = '';
+                let totalStudentsCount = 0;
+                let totalProductsCount = 0;
+
+                Object.values(studentsData).forEach(st => {
+                    totalStudentsCount++;
+                    const prodsCount = st.products ? st.products.length : 0;
+                    totalProductsCount += prodsCount;
+
+                    html += `
+                        <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm space-y-2">
+                            <div class="flex justify-between items-center">
+                                <span class="font-bold text-sm text-purple-950"><i class="fa-solid fa-user-graduate text-amber-500 ml-1"></i> ${st.name}</span>
+                                <span class="text-[11px] bg-purple-100 text-purple-800 px-2.5 py-0.5 rounded-full font-bold">الصف ${getGradeArabic(st.grade)}</span>
+                            </div>
+                            <div class="flex justify-between items-center text-xs text-slate-600 bg-purple-50/50 p-2 rounded-lg">
+                                <span>النقاط: <strong class="text-purple-700">${st.score || 0} PTS</strong></span>
+                                <span>البطاقات والمنجزات: <strong class="text-emerald-700">${prodsCount} بطاقة</strong></span>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                container.innerHTML = html;
+            });
         }
 
         function closeTeacherAdminModal() {
@@ -742,7 +773,10 @@
         }
 
         function adminResetAllData() {
-            if (confirm('هل أنتِ متأكدة من تصفير جميع المدخلات وسجلات الطالبة وإعادة ضبط الألعاب؟')) {
+            if (confirm('هل أنتِ متأكدة من تصفير وسجلات قاعدة البيانات بالكامل؟')) {
+                if (db) {
+                    db.ref('students').remove();
+                }
                 forceGoToHome();
                 closeTeacherAdminModal();
 
@@ -751,8 +785,8 @@
                         <div class="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-2xl font-bold mx-auto">
                             <i class="fa-solid fa-check"></i>
                         </div>
-                        <h3 class="text-xl font-bold text-purple-950 font-cairo">تم تصفير البيانات بنجاح</h3>
-                        <p class="text-xs text-slate-600">تم إعادة الضبط وهيئة الصفحة لاستقبال طالبة جديدة.</p>
+                        <h3 class="text-xl font-bold text-purple-950 font-cairo">تم تصفير السجلات بنجاح</h3>
+                        <p class="text-xs text-slate-600">تم مسح جميع بيانات الطالبات من قاعدة البيانات السحابية.</p>
                         <button onclick="closeModal()" class="w-full bg-purple-900 text-white py-2.5 rounded-xl font-bold text-xs">موافق</button>
                     </div>
                 `);
@@ -852,6 +886,7 @@
                 };
                 currentStudent.products.push(newProduct);
                 addScore(50);
+                syncToFirebase();
 
                 if (typeof confetti === 'function') confetti({ particleCount: 100, spread: 80, origin: { y: 0.5 } });
 
@@ -971,6 +1006,7 @@
                             bgGradient: 'from-pink-500 to-rose-500'
                         });
                         addScore(40);
+                        syncToFirebase();
 
                         if (typeof confetti === 'function') confetti({ particleCount: 80 });
 
@@ -1059,6 +1095,7 @@
                         bgGradient: 'from-amber-500 to-orange-600'
                     });
                     addScore(50);
+                    syncToFirebase();
 
                     if (typeof confetti === 'function') confetti({ particleCount: 90 });
 
@@ -1129,6 +1166,7 @@
             if (selectedIdx === item.correctIndex) {
                 playSound('win');
                 addScore(30);
+                syncToFirebase();
 
                 showModal(`
                     <div class="space-y-4">
@@ -1207,6 +1245,7 @@
 
             currentStudent.products.push(newStory);
             addScore(40);
+            syncToFirebase();
 
             if (typeof confetti === 'function') confetti({ particleCount: 100 });
 
@@ -1238,6 +1277,7 @@
                 bgGradient: 'from-amber-500 via-purple-700 to-indigo-900'
             });
             addScore(100);
+            syncToFirebase();
 
             if (typeof confetti === 'function') confetti({ particleCount: 150, spread: 100 });
             playSound('win');
