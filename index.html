@@ -10,6 +10,8 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.1/css/all.min.css">
     <!-- Canvas Confetti -->
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <!-- SheetJS (XLSX Library) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Fredoka:wght@400;600;700&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
 
@@ -372,7 +374,7 @@
                     <h4 class="text-sm font-bold text-purple-950"><i class="fa-solid fa-users ml-1"></i> الطالبات المسجلات والمنجزات:</h4>
                     <button onclick="exportToExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs shadow-md btn-bounce flex items-center gap-1.5">
                         <i class="fa-solid fa-file-excel"></i>
-                        <span>تصدير ملف Excel (CSV)</span>
+                        <span>تصدير ملف Excel (XLSX)</span>
                     </button>
                 </div>
                 <div id="teacherStudentsListContainer" class="space-y-2 max-h-[260px] overflow-y-auto p-2 bg-slate-50 rounded-2xl border border-slate-200">
@@ -777,31 +779,30 @@
             });
         }
 
-        // Export data to Excel (CSV format)
+        // Export data to Excel (XLSX format using SheetJS library)
         function exportToExcel() {
             if (!cachedStudentsData) {
                 alert('لا توجد بيانات لتصديرها حالياً. قومي بفتح لوحة الإدارة أولاً لجلب البيانات.');
                 return;
             }
 
-            let csvContent = "\uFEFF";
-            csvContent += "اسم الطالبة,الصف الدراسي,إجمالي النقاط,عدد البطاقات والإنجازات\n";
-
+            const excelRows = [];
             Object.values(cachedStudentsData).forEach(st => {
-                const name = `"${st.name || ''}"`;
-                const grade = `"الصف ${getGradeArabic(st.grade)}"`;
-                const score = st.score || 0;
-                const badges = st.products ? st.products.length : 0;
-                csvContent += `${name},${grade},${score},${badges}\n`;
+                excelRows.push({
+                    "اسم الطالبة": st.name || '',
+                    "الصف الدراسي": `الصف ${getGradeArabic(st.grade)}`,
+                    "إجمالي النقاط": st.score || 0,
+                    "عدد البطاقات والمنجزات": st.products ? st.products.length : 0
+                });
             });
 
-            const encodedUri = encodeURI("data:text/csv;charset=utf-8," + csvContent);
-            const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", "TopGoal_Students_Report.csv");
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            // Create worksheet and workbook
+            const worksheet = XLSX.utils.json_to_sheet(excelRows);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "سجلات الطالبات");
+
+            // Export to XLSX file
+            XLSX.writeFile(workbook, "TopGoal_Students_Report.xlsx");
         }
 
         function closeTeacherAdminModal() {
